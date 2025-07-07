@@ -2,15 +2,15 @@ import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
-import 'package:exception_swallowing_lint/src/exception_swallowing_rule.dart';
+import 'package:exception_hiding_lint/src/exception_hiding_rule.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('ExceptionSwallowingRule', () {
-    late ExceptionSwallowingRule rule;
+  group('ExceptionHidingRule', () {
+    late ExceptionHidingRule rule;
 
     setUp(() {
-      rule = const ExceptionSwallowingRule();
+      rule = const ExceptionHidingRule();
     });
 
     test('should detect empty catch blocks', () {
@@ -148,7 +148,7 @@ void customThrowFunction() {
     });
 
     test('should detect default value creation without rethrow', () {
-      // Test case: Creating default values (exception swallowing)
+      // Test case: Creating default values (exception hiding)
       const code = '''
 Map<String, dynamic> getDataWithDefaults() {
   try {
@@ -247,7 +247,7 @@ Future<void> complexRetryFunction() async {
   });
 }
 
-/// Analyzes the given code and returns whether exception swallowing violations were found
+/// Analyzes the given code and returns whether exception hiding violations were found
 bool _analyzeCode(String code) {
   // Parse the code into an AST
   final parseResult = parseString(
@@ -256,13 +256,13 @@ bool _analyzeCode(String code) {
     throwIfDiagnostics: false,
   );
 
-  final rule = const ExceptionSwallowingRule();
+  final rule = const ExceptionHidingRule();
   bool foundViolations = false;
 
   // Find all try statements and test them directly using the rule's logic
   final visitor = _TryStatementFinder((tryStatement) {
     for (final catchClause in tryStatement.catchClauses) {
-      if (rule._isExceptionSwallowingForTesting(catchClause)) {
+      if (rule._isExceptionHidingForTesting(catchClause)) {
         foundViolations = true;
         break;
       }
@@ -288,13 +288,13 @@ class _TryStatementFinder extends RecursiveAstVisitor<void> {
 }
 
 /// Extension to expose the private method for testing
-extension ExceptionSwallowingRuleTest on ExceptionSwallowingRule {
-  bool _isExceptionSwallowingForTesting(CatchClause catchClause) {
+extension ExceptionHidingRuleTest on ExceptionHidingRule {
+  bool _isExceptionHidingForTesting(CatchClause catchClause) {
     final block = catchClause.body;
     final statements = block.statements;
 
     if (statements.isEmpty) {
-      // Empty catch block is definitely swallowing
+      // Empty catch block is definitely hiding
       return true;
     }
 
@@ -345,13 +345,13 @@ extension ExceptionSwallowingRuleTest on ExceptionSwallowingRule {
       return false;
     }
 
-    // If there's logging but no rethrow/throw, it's likely swallowing
+    // If there's logging but no rethrow/throw, it's likely hiding
     if (hasLogging && !hasRethrow && !hasThrow) {
       print('DEBUG: Returning true due to logging without rethrow/throw');
       return true;
     }
 
-    // If there are statements but no logging, rethrow, or throw, it might be swallowing
+    // If there are statements but no logging, rethrow, or throw, it might be hiding
     if (!hasLogging && !hasRethrow && !hasThrow && statements.isNotEmpty) {
       // Check if statements create default/fallback values instead of rethrowing
       final createsDefaults = _createsDefaultValuesForTesting(statements);
@@ -359,7 +359,7 @@ extension ExceptionSwallowingRuleTest on ExceptionSwallowingRule {
       return createsDefaults;
     }
 
-    print('DEBUG: Returning false - no swallowing detected');
+    print('DEBUG: Returning false - no hiding detected');
     return false;
   }
 

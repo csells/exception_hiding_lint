@@ -1,10 +1,10 @@
 {
   "roots": [
-    "exception_swallowing_lint"
+    "exception_hiding_lint"
   ],
   "packages": [
     {
-      "name": "exception_swallowing_lint",
+      "name": "exception_hiding_lint",
       "version": "0.1.0",
       "dependencies": [
         "analyzer",

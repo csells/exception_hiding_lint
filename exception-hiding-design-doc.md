@@ -1,11 +1,11 @@
-# Exception Swallowing Lint Rule - Design Document
+# Exception Hiding Lint Rule - Design Document
 
 ## Executive Summary
 
-The Exception Swallowing Lint Rule is a custom Dart static analysis tool that
+The Exception Hiding Lint Rule is a custom Dart static analysis tool that
 prevents a critical software engineering anti-pattern: **exceptions should not be
 swallowed unless there's a specific fix that can be applied**. This rule
-detects and prevents "exception swallowing" patterns where code catches
+detects and prevents "exception hiding" patterns where code catches
 exceptions but fails to properly handle or propagate them, masking underlying
 problems from developers and users.
 
@@ -16,17 +16,17 @@ problems from developers and users.
 - **Code Quality**: Enforces explicit exception handling strategies
 - **Team Alignment**: Codifies exception handling philosophy across the codebase
 
-## Exception Swallowing Prevention Philosophy
+## Exception Hiding Prevention Philosophy
 
 ### Core Principle
 
 > "Never hide exceptions with try-catch blocks unless there's a specific fix we
 > can apply in our code - exceptions are either problems we need to fix or
-> problems the user needs to fix, but swallowing them makes that impossible."
+> problems the user needs to fix, but hiding them makes that impossible."
 
 ### Rationale
 
-**Exception swallowing** occurs when code catches exceptions but continues
+**Exception hiding** occurs when code catches exceptions but continues
 execution without properly addressing the underlying problem. This creates
 several issues:
 
@@ -45,7 +45,7 @@ The rule recognizes ONLY these legitimate exception handling patterns:
 - **Rethrow**: `rethrow;` - Let the exception bubble up unchanged
 - **Throw**: `throw NewException();` - Convert to a different exception type
 
-**Everything else is considered exception swallowing and will be flagged.**
+**Everything else is considered exception hiding and will be flagged.**
 
 ## Architecture & Implementation
 
@@ -64,10 +64,10 @@ provides:
 
 ```dart
 // Main plugin entry point
-class _ExceptionSwallowingLint extends PluginBase {
+class _ExceptionHidingLint extends PluginBase {
   @override
   List<LintRule> getLintRules(CustomLintConfigs configs) => [
-        ExceptionSwallowingRule(),
+        ExceptionHidingRule(),
       ];
 }
 ```
@@ -80,10 +80,10 @@ The plugin follows the standard custom_lint architecture:
 ### Rule Implementation Architecture
 
 ```dart
-class ExceptionSwallowingRule extends DartLintRule {
+class ExceptionHidingRule extends DartLintRule {
   static const _code = LintCode(
-    name: 'exception_swallowing',
-    problemMessage: 'Exception swallowing detected...',
+    name: 'exception_hiding',
+    problemMessage: 'Exception hiding detected...',
     correctionMessage: 'Remove the try-catch block or rethrow...',
   );
   
@@ -101,7 +101,7 @@ class ExceptionSwallowingRule extends DartLintRule {
 1. **AST Traversal**: The rule registers a listener for `TryStatement` nodes
 2. **Catch Clause Analysis**: Each catch clause is individually examined
 3. **Pattern Detection**: Multiple specialized visitors analyze the catch block
-4. **Heuristic Evaluation**: Sophisticated logic determines if swallowing is
+4. **Heuristic Evaluation**: Sophisticated logic determines if hiding is
    occurring
 5. **Error Reporting**: Violations are reported with precise location and
    guidance
@@ -174,16 +174,16 @@ for (int retry = 0; retry < maxRetries; retry++) { ... }
 - Identifies increment operations on attempt variables
 - Recognizes assignment expressions with retry semantics
 
-### Swallowing Detection Algorithm
+### Hiding Detection Algorithm
 
 The core detection algorithm combines multiple signals:
 
 ```dart
-bool _isExceptionSwallowing(CatchClause catchClause) {
+bool _isExceptionHiding(CatchClause catchClause) {
   final block = catchClause.body;
   final statements = block.statements;
 
-  // Empty catch blocks are always swallowing
+  // Empty catch blocks are always hiding
   if (statements.isEmpty) return true;
 
   bool hasLogging = false;
@@ -202,7 +202,7 @@ bool _isExceptionSwallowing(CatchClause catchClause) {
   // Legitimate error handling patterns are allowed
   if (isLegitimateHandling) return false;
 
-  // Logging without rethrow/throw indicates swallowing
+  // Logging without rethrow/throw indicates hiding
   if (hasLogging && !hasRethrow && !hasThrow) return true;
 
   // Check for default value creation patterns
@@ -265,7 +265,7 @@ try {
   return processResult(result);
 } catch (e) {
   logger.warning('Operation failed: $e');
-  return null; // Swallowing - continues with null instead of failing
+  return null; // Hiding - continues with null instead of failing
 }
 ```
 
@@ -277,7 +277,7 @@ value, hiding the underlying problem.
 try {
   return jsonDecode(input);
 } catch (e) {
-  return {}; // Swallowing - creates empty map on parse failure
+  return {}; // Hiding - creates empty map on parse failure
 }
 ```
 
@@ -289,7 +289,7 @@ failed, masking data corruption.
 try {
   return fetchUserName();
 } catch (e) {
-  return 'Unknown User'; // Swallowing - user never knows fetch failed
+  return 'Unknown User'; // Hiding - user never knows fetch failed
 }
 ```
 
@@ -301,7 +301,7 @@ String result;
 try {
   result = complexCalculation();
 } catch (e) {
-  result = 'default'; // Swallowing - assigns fallback instead of failing
+  result = 'default'; // Hiding - assigns fallback instead of failing
 }
 ```
 
@@ -312,7 +312,7 @@ try {
 try {
   criticalSystemOperation();
 } catch (e) {
-  // Swallowing - completely ignores all exceptions
+  // Hiding - completely ignores all exceptions
 }
 ```
 
@@ -355,8 +355,8 @@ Add to `pubspec.yaml`:
 ```yaml
 dev_dependencies:
   custom_lint: ^0.7.5
-  exception_swallowing_lint:
-    path: ../exception_swallowing_lint
+  exception_hiding_lint:
+    path: ../exception_hiding_lint
 ```
 
 #### 2. Analysis Configuration
@@ -369,7 +369,7 @@ analyzer:
 
 custom_lint:
   rules:
-    - exception_swallowing
+    - exception_hiding
 ```
 
 #### 3. IDE Integration
@@ -409,7 +409,7 @@ exit $?
 
 #### 1. Gradual Rollout
 - Start with new code only
-- Use `// ignore: exception_swallowing` for legacy code requiring assessment
+- Use `// ignore: exception_hiding` for legacy code requiring assessment
 - Gradually address historical violations
 
 #### 2. Education & Training
@@ -431,8 +431,8 @@ framework:
 
 ```dart
 void main() {
-  group('ExceptionSwallowingRule', () {
-    testRule('detects basic exception swallowing', ExceptionSwallowingRule.new);
+  group('ExceptionHidingRule', () {
+    testRule('detects basic exception hiding', ExceptionHidingRule.new);
     testRule('allows legitimate tool error handling', ExceptionSwallowingRule.new);
     testRule('allows retry logic patterns', ExceptionSwallowingRule.new);
   });
@@ -566,7 +566,7 @@ analyzer:
 
 custom_lint:
   rules:
-    - exception_swallowing
+    - exception_hiding
 ```
 
 #### Advanced Configuration (Future)
@@ -574,7 +574,7 @@ custom_lint:
 # analysis_options.yaml
 custom_lint:
   rules:
-    - exception_swallowing:
+    - exception_hiding:
         severity: error
         allow_patterns:
           - tool_error_handling
@@ -614,7 +614,7 @@ try {
   return criticalOperation();
 } catch (e) {
   logger.warning('Failed: $e');
-  return null; // ❌ Swallows exception
+  return null; // ❌ Hides exception
 }
 
 // 2. Silent Default Creation
@@ -628,7 +628,7 @@ try {
 try {
   return apiCall();
 } catch (e) {
-  return {'error': e.toString()}; // ❌ Swallows exception
+  return {'error': e.toString()}; // ❌ Hides exception
 }
 
 // 4. Retry Logic
@@ -637,7 +637,7 @@ try {
 } catch (e) {
   attempt++;
   await Future.delayed(Duration(seconds: 1));
-  // ❌ Swallows exception (no rethrow)
+  // ❌ Hides exception (no rethrow)
 }
 
 // 5. Empty Catch
@@ -658,7 +658,7 @@ try {
 
 **Issue**: False positives on legitimate patterns
 - **Cause**: Pattern not recognized by current detection logic
-- **Solution**: Add `// ignore: exception_swallowing` comment and report pattern
+- **Solution**: Add `// ignore: exception_hiding` comment and report pattern
   for future enhancement
 
 **Issue**: Performance impact on large codebases
@@ -713,5 +713,5 @@ dart run custom_lint example/
 ---
 
 *This design document serves as the authoritative reference for the Exception
-Swallowing Lint Rule implementation, philosophy, and usage guidelines. It
+Hiding Lint Rule implementation, philosophy, and usage guidelines. It
 should be updated as the rule evolves and new patterns are discovered.*

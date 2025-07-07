@@ -6,7 +6,7 @@ analyzer:
 
 custom_lint:
   rules:
-    - exception_swallowing
+    - exception_hiding
 
 linter:
   rules:

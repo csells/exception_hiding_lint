@@ -2,14 +2,14 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/error/listener.dart';
 import 'package:custom_lint_builder/custom_lint_builder.dart';
 
-class ExceptionSwallowingRule extends DartLintRule {
-  const ExceptionSwallowingRule() : super(code: _code);
+class ExceptionHidingRule extends DartLintRule {
+  const ExceptionHidingRule() : super(code: _code);
 
   static const _code = LintCode(
-    name: 'exception_swallowing',
+    name: 'exception_hiding',
     problemMessage:
-        'Exception swallowing detected: Caught exception is logged but not rethrown. '
-        'This violates Exception Transparency - let exceptions bubble up to reveal problems.',
+        'Exception hiding detected: Caught exception is logged but not rethrown. '
+        'This violates exception hiding prevention - let exceptions bubble up to reveal problems.',
     correctionMessage:
         'Remove the try-catch block or rethrow the exception after logging. '
         'Only catch exceptions when you can meaningfully fix the problem.',
@@ -28,17 +28,17 @@ class ExceptionSwallowingRule extends DartLintRule {
 
   void _checkTryStatement(TryStatement node, ErrorReporter reporter) {
     for (final catchClause in node.catchClauses) {
-      if (_isExceptionSwallowing(catchClause)) {
+      if (_isExceptionHiding(catchClause)) {
         reporter.atNode(catchClause, code);
       }
     }
   }
 
-  bool _isExceptionSwallowing(CatchClause catchClause) {
+  bool _isExceptionHiding(CatchClause catchClause) {
     final block = catchClause.body;
     final statements = block.statements;
 
-    // Empty catch blocks are swallowing
+    // Empty catch blocks are hiding
     if (statements.isEmpty) {
       return true;
     }
@@ -48,13 +48,13 @@ class ExceptionSwallowingRule extends DartLintRule {
       if (statement is ExpressionStatement) {
         final expression = statement.expression;
         if (expression is RethrowExpression || expression is ThrowExpression) {
-          // Found legitimate exception handling - not swallowing
+          // Found legitimate exception handling - not hiding
           return false;
         }
       }
     }
 
-    // No rethrow or throw found - this is swallowing
+    // No rethrow or throw found - this is hiding
     return true;
   }
 

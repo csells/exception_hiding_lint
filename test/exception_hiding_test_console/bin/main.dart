@@ -1,7 +1,7 @@
 // Test console application to demonstrate exception transparency lint rule
 
-import 'package:exception_swallowing_test_console/bad_examples.dart' as bad;
-import 'package:exception_swallowing_test_console/good_examples.dart' as good;
+import 'package:exception_hiding_test_console/bad_examples.dart' as bad;
+import 'package:exception_hiding_test_console/good_examples.dart' as good;
 
 void main() {
   print('Exception Transparency Lint Rule Test Console');

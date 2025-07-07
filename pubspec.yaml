@@ -1,5 +1,5 @@
-name: exception_swallowing_lint
-description: Custom lint rules to enforce exception transparency principles in Dart code.
+name: exception_hiding_lint
+description: Custom lint rules to prevent exception hiding patterns in Dart code.
 version: 0.1.0
 
 environment:

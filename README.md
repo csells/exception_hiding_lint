@@ -1,6 +1,6 @@
-# Exception Swallowing Lint
+# Exception Hiding Lint
 
-A custom Dart lint package that detects and prevents exception swallowing
+A custom Dart lint package that detects and prevents exception hiding
 patterns in your code.
 
 ## Why I built this
@@ -30,11 +30,11 @@ This linter identifies problematic try-catch blocks that:
 - **Exception transformation** - Catching one exception type and throwing a different one
 - **Retry logic** - Patterns with `Future.delayed()` or attempt increment tracking
 
-## Exception Swallowing Prevention Principle
+## Exception Hiding Prevention Principle
 
-> "Never swallow exceptions with try-catch blocks unless there's a specific fix we
+> "Never hide exceptions with try-catch blocks unless there's a specific fix we
 > can apply in our code - exceptions are either problems we need to fix or
-> problems the user needs to fix, but swallowing them makes that impossible."
+> problems the user needs to fix, but hiding them makes that impossible."
 
 ## Examples
 
@@ -77,7 +77,7 @@ String result;
 try {
   result = complexCalculation();
 } catch (e) {
-  result = 'default'; // Assigns default value - swallowing!
+  result = 'default'; // Assigns default value - hiding!
 }
 ```
 
@@ -126,7 +126,7 @@ analyzer:
 
 custom_lint:
   rules:
-    - exception_swallowing
+    - exception_hiding
 ```
 
 Add to your `dev_dependencies` in `pubspec.yaml`:
@@ -134,8 +134,8 @@ Add to your `dev_dependencies` in `pubspec.yaml`:
 ```yaml
 dev_dependencies:
   custom_lint: ^0.6.7
-  exception_swallowing_lint:
-    path: ../exception_swallowing_lint
+  exception_hiding_lint:
+    path: ../exception_hiding_lint
 ```
 
 ## Usage
@@ -146,5 +146,5 @@ Run the linter with:
 dart run custom_lint
 ```
 
-The rule will warn about any exception swallowing patterns found in your code
+The rule will warn about any exception hiding patterns found in your code
 with suggestions on how to fix them.
