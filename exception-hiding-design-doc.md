@@ -2,62 +2,46 @@
 
 ## Executive Summary
 
-The Exception Hiding Lint Rule is a custom Dart static analysis tool that
-prevents a critical software engineering anti-pattern: **exceptions should not be
-swallowed unless there's a specific fix that can be applied**. This rule
-detects and prevents "exception hiding" patterns where code catches
-exceptions but fails to properly handle or propagate them, masking underlying
-problems from developers and users.
+The Exception Hiding Lint Rule is a custom Dart static analysis tool that enforces a critical software engineering principle: **exceptions should not be hidden in catch blocks**. This rule detects and prevents "exception hiding" patterns where code catches exceptions but fails to rethrow or throw, masking underlying problems from developers and users.
+
+The implementation is intentionally simple and strict: **every catch block must contain either `rethrow` or `throw`** - anything else is considered exception hiding and will be flagged.
 
 **Key Benefits:**
-- **Problem Visibility**: Ensures underlying issues are exposed rather than
-  hidden
+- **Problem Visibility**: Ensures underlying issues are exposed rather than hidden
 - **Debugging Efficiency**: Reduces time spent tracking down masked problems
-- **Code Quality**: Enforces explicit exception handling strategies
+- **Code Quality**: Enforces explicit exception propagation
 - **Team Alignment**: Codifies exception handling philosophy across the codebase
 
 ## Exception Hiding Prevention Philosophy
 
 ### Core Principle
 
-> "Never hide exceptions with try-catch blocks unless there's a specific fix we
-> can apply in our code - exceptions are either problems we need to fix or
-> problems the user needs to fix, but hiding them makes that impossible."
+> "Never hide exceptions with try-catch blocks - exceptions are either problems we need to fix or problems the user needs to fix, but hiding them makes that impossible."
 
 ### Rationale
 
-**Exception hiding** occurs when code catches exceptions but continues
-execution without properly addressing the underlying problem. This creates
-several issues:
+**Exception hiding** occurs when code catches exceptions but continues execution without properly propagating the error. This creates several issues:
 
-1. **Hidden Failures**: Problems occur silently, making debugging nearly
-   impossible
-2. **Inconsistent State**: Applications continue running with corrupted or
-   incomplete data
+1. **Hidden Failures**: Problems occur silently, making debugging nearly impossible
+2. **Inconsistent State**: Applications continue running with corrupted or incomplete data
 3. **User Confusion**: Features appear to work but produce incorrect results
-4. **Technical Debt**: Problems accumulate without visibility into their
-   frequency or impact
+4. **Technical Debt**: Problems accumulate without visibility into their frequency or impact
 
-### When Exception Handling IS Appropriate
+### The Simple Rule
 
-The rule recognizes ONLY these legitimate exception handling patterns:
-
-- **Rethrow**: `rethrow;` - Let the exception bubble up unchanged
-- **Throw**: `throw NewException();` - Convert to a different exception type
-
-**Everything else is considered exception hiding and will be flagged.**
+The lint rule enforces one simple principle:
+- **Every catch block must contain either `rethrow` or `throw`**
+- Any catch block without these statements is flagged as exception hiding
 
 ## Architecture & Implementation
 
 ### Technical Foundation
 
-The lint rule is built using Dart's `custom_lint_builder` framework, which
-provides:
+The lint rule is built using Dart's `custom_lint_builder` framework, which provides:
 
 - **AST Access**: Direct access to the Abstract Syntax Tree of Dart code
 - **Integration**: Seamless integration with `dart analyze` and IDE tooling
-- **Performance**: Efficient analysis during compilation without runtime
-  overhead
+- **Performance**: Efficient analysis during compilation without runtime overhead
 - **Extensibility**: Plugin architecture for custom rules
 
 ### Plugin Structure
@@ -72,193 +56,72 @@ class _ExceptionHidingLint extends PluginBase {
 }
 ```
 
-The plugin follows the standard custom_lint architecture:
-- **Entry Point**: `createPlugin()` function exports the plugin
-- **Rule Registration**: Plugin registers individual lint rules
-- **Analysis Integration**: Rules are automatically invoked during Dart analysis
+### Rule Implementation
 
-### Rule Implementation Architecture
+The core rule implementation is remarkably simple:
 
 ```dart
 class ExceptionHidingRule extends DartLintRule {
   static const _code = LintCode(
     name: 'exception_hiding',
-    problemMessage: 'Exception hiding detected...',
-    correctionMessage: 'Remove the try-catch block or rethrow...',
+    problemMessage:
+        'Exception hiding detected: Caught exception is logged but not rethrown. '
+        'This violates exception hiding prevention - let exceptions bubble up to reveal problems.',
+    correctionMessage:
+        'Remove the try-catch block or rethrow the exception after logging. '
+        'Only catch exceptions when you can meaningfully fix the problem.',
   );
-  
+
   @override
   void run(CustomLintResolver resolver, ErrorReporter reporter, CustomLintContext context) {
     context.registry.addTryStatement((node) => _checkTryStatement(node, reporter));
   }
-}
-```
 
-## Detection Logic & AST Analysis
-
-### Primary Analysis Flow
-
-1. **AST Traversal**: The rule registers a listener for `TryStatement` nodes
-2. **Catch Clause Analysis**: Each catch clause is individually examined
-3. **Pattern Detection**: Multiple specialized visitors analyze the catch block
-4. **Heuristic Evaluation**: Sophisticated logic determines if hiding is
-   occurring
-5. **Error Reporting**: Violations are reported with precise location and
-   guidance
-
-### Multi-Visitor Pattern Architecture
-
-The rule employs multiple specialized AST visitors for comprehensive analysis:
-
-#### 1. Logging Detection (`_LoggingDetector`)
-
-**Purpose**: Identifies logging statements within catch blocks
-
-**Detection Patterns**:
-```dart
-// Logger-based patterns
-logger.warning('Error: $e');
-_logger.error(e.toString());
-
-// Print statements
-print('Error occurred: $e');
-
-// Log object patterns
-log.severe(e.message);
-```
-
-**Implementation Strategy**:
-- Traverses `MethodInvocation` nodes
-- Checks target object names (`logger`, `_logger`, `log`)
-- Validates method names (`warning`, `error`, `info`, `fine`, `severe`)
-- Detects `print()` calls
-
-#### 2. Legitimate Pattern Detection (`_ToolErrorDetector`)
-
-**Purpose**: Recognizes legitimate exception handling patterns
-
-**Legitimate Patterns**:
-```dart
-// Structured error responses
-return {'error': e.message, 'code': 'OPERATION_FAILED'};
-
-// Error mapping for APIs
-throw ApiException('Service unavailable', originalException: e);
-```
-
-**Implementation Strategy**:
-- Detects structured error response patterns
-- Identifies exception transformation patterns
-- Recognizes legitimate error handling in specific contexts
-- Analyzes map literal entries for error information
-
-#### 3. Retry Logic Detection (`_RetryLogicDetector`)
-
-**Purpose**: Identifies retry mechanism implementations
-
-**Retry Patterns**:
-```dart
-// Delay-based retry
-await Future.delayed(Duration(seconds: delay));
-
-// Attempt counting
-attempt++;
-attempt += 1;
-
-// Retry loop indicators
-for (int retry = 0; retry < maxRetries; retry++) { ... }
-```
-
-**Implementation Strategy**:
-- Detects `Future.delayed()` method calls
-- Identifies increment operations on attempt variables
-- Recognizes assignment expressions with retry semantics
-
-### Hiding Detection Algorithm
-
-The core detection algorithm combines multiple signals:
-
-```dart
-bool _isExceptionHiding(CatchClause catchClause) {
-  final block = catchClause.body;
-  final statements = block.statements;
-
-  // Empty catch blocks are always hiding
-  if (statements.isEmpty) return true;
-
-  bool hasLogging = false;
-  bool hasRethrow = false;
-  bool hasThrow = false;
-  bool isLegitimateHandling = false;
-
-  // Analyze each statement in the catch block
-  for (final statement in statements) {
-    hasLogging ||= _containsLogging(statement);
-    hasRethrow ||= _isRethrowStatement(statement);
-    hasThrow ||= _isThrowStatement(statement);
-    isLegitimateHandling ||= _isLegitimateHandling(statement) || _isRetryLogic(statement);
-  }
-
-  // Legitimate error handling patterns are allowed
-  if (isLegitimateHandling) return false;
-
-  // Logging without rethrow/throw indicates hiding
-  if (hasLogging && !hasRethrow && !hasThrow) return true;
-
-  // Check for default value creation patterns
-  if (!hasLogging && !hasRethrow && !hasThrow && statements.isNotEmpty) {
-    return _createsDefaultValues(statements);
-  }
-
-  return false;
-}
-```
-
-### Default Value Detection
-
-The rule identifies patterns where catch blocks create fallback values in both return statements and assignments:
-
-```dart
-bool _createsDefaultValues(List<Statement> statements) {
-  for (final statement in statements) {
-    if (statement is ReturnStatement) {
-      final returnValue = statement.expression?.toString() ?? '';
-      // Common default value patterns in return statements
-      if (returnValue.contains('{}') ||           // Empty map
-          returnValue.contains('[]') ||           // Empty list
-          returnValue.contains("{'result':") ||   // Default result structure
-          returnValue.contains('toString()') ||   // String conversion fallback
-          returnValue.contains("'Unknown") ||     // Unknown user patterns
-          returnValue.contains('"Unknown') ||
-          returnValue.contains("'default'") ||    // Default string values
-          returnValue.contains('"default"')) {
-        return true;
-      }
-    } else if (statement is ExpressionStatement) {
-      final expression = statement.expression;
-      if (expression is AssignmentExpression) {
-        final rightSide = expression.rightHandSide.toString();
-        // Common default value patterns in assignments
-        if (rightSide.contains('{}') ||
-            rightSide.contains('[]') ||
-            rightSide.contains("{'result':") ||
-            rightSide.contains('toString()') ||
-            rightSide.contains("'default'") ||
-            rightSide.contains('"default"')) {
-          return true;
+  bool _isExceptionHiding(CatchClause catchClause) {
+    final statements = catchClause.body.statements;
+    
+    // Empty catch blocks are hiding
+    if (statements.isEmpty) return true;
+    
+    // Check if any statement is rethrow or throw
+    for (final statement in statements) {
+      if (statement is ExpressionStatement) {
+        final expression = statement.expression;
+        if (expression is RethrowExpression || expression is ThrowExpression) {
+          return false; // Found legitimate exception handling
         }
       }
     }
+    
+    // No rethrow or throw found - this is hiding
+    return true;
   }
-  return false;
 }
 ```
+
+## Detection Logic
+
+The detection logic is straightforward:
+
+1. **Empty Catch Blocks**: Any catch block with no statements is immediately flagged
+2. **Statement Analysis**: For non-empty catch blocks, examine each statement
+3. **Look for Propagation**: Check if any statement is `rethrow` or `throw`
+4. **Flag if Missing**: If no exception propagation is found, flag as hiding
 
 ## Pattern Recognition Examples
 
 ### ❌ Detected Violations
 
-#### 1. Log-and-Continue Pattern
+#### 1. Empty Catch Block
+```dart
+try {
+  criticalSystemOperation();
+} catch (e) {
+  // Hiding - completely ignores all exceptions
+}
+```
+
+#### 2. Log-and-Continue Pattern
 ```dart
 try {
   final result = await complexOperation();
@@ -269,10 +132,7 @@ try {
 }
 ```
 
-**Why flagged**: Logs the exception but continues execution with a fallback
-value, hiding the underlying problem.
-
-#### 2. Silent Default Creation
+#### 3. Silent Default Creation
 ```dart
 try {
   return jsonDecode(input);
@@ -281,43 +141,15 @@ try {
 }
 ```
 
-**Why flagged**: Creates default values without any indication that parsing
-failed, masking data corruption.
-
-#### 3. Silent Fallback Pattern
+#### 4. Print Without Rethrow
 ```dart
 try {
   return fetchUserName();
 } catch (e) {
-  return 'Unknown User'; // Hiding - user never knows fetch failed
+  print('Error: $e');
+  return 'Unknown User'; // Hiding - returns fallback value
 }
 ```
-
-**Why flagged**: Returns hardcoded fallback value, hiding network or data issues.
-
-#### 4. Assignment Default Pattern
-```dart
-String result;
-try {
-  result = complexCalculation();
-} catch (e) {
-  result = 'default'; // Hiding - assigns fallback instead of failing
-}
-```
-
-**Why flagged**: Assigns default values to variables, continuing execution with potentially invalid state.
-
-#### 5. Empty Catch Block
-```dart
-try {
-  criticalSystemOperation();
-} catch (e) {
-  // Hiding - completely ignores all exceptions
-}
-```
-
-**Why flagged**: Completely suppresses all exceptions, making debugging
-impossible.
 
 ### ✅ Allowed Patterns
 
@@ -328,22 +160,30 @@ try {
 } catch (e) {
   logger.error('Operation failed: $e');
   await cleanup();
-  rethrow; // ✅ ONLY legitimate pattern - let exception bubble up
+  rethrow; // ✅ Exception propagates up
 }
 ```
-
-**Why allowed**: Lets the exception bubble up unchanged after optional cleanup.
 
 #### 2. Exception Transformation  
 ```dart
 try {
   return lowLevelOperation();
 } catch (e) {
-  throw DomainSpecificException('High-level operation failed', e); // ✅ ONLY other legitimate pattern
+  throw DomainSpecificException('High-level operation failed', e); // ✅ New exception thrown
 }
 ```
 
-**Why allowed**: Transforms low-level exceptions into domain-specific ones while preserving the error information.
+#### 3. Conditional Throw
+```dart
+try {
+  return riskyOperation();
+} catch (e) {
+  if (shouldRetry) {
+    scheduleRetry();
+  }
+  throw OperationFailedException(e); // ✅ Always throws
+}
+```
 
 ## Integration Strategy
 
@@ -392,7 +232,7 @@ dart analyze --watch
 # Automated checking in build pipeline
 dart run custom_lint
 if [ $? -ne 0 ]; then
-  echo "Exception transparency violations detected"
+  echo "Exception hiding violations detected"
   exit 1
 fi
 ```
@@ -405,313 +245,77 @@ dart run custom_lint
 exit $?
 ```
 
-### Team Adoption Strategy
-
-#### 1. Gradual Rollout
-- Start with new code only
-- Use `// ignore: exception_hiding` for legacy code requiring assessment
-- Gradually address historical violations
-
-#### 2. Education & Training
-- Share exception transparency principles with team
-- Provide examples of good vs. bad patterns
-- Code review focus on proper exception handling
-
-#### 3. Metrics & Monitoring
-- Track violation counts over time
-- Monitor exception handling pattern adoption
-- Measure reduction in debugging time for masked errors
-
 ## Testing Strategy
 
-### Test Architecture
-
-The rule includes comprehensive test coverage using the `custom_lint` testing
-framework:
-
-```dart
-void main() {
-  group('ExceptionHidingRule', () {
-    testRule('detects basic exception hiding', ExceptionHidingRule.new);
-    testRule('allows legitimate tool error handling', ExceptionSwallowingRule.new);
-    testRule('allows retry logic patterns', ExceptionSwallowingRule.new);
-  });
-}
-```
+The rule includes comprehensive test coverage to ensure correct behavior:
 
 ### Test Categories
 
-#### 1. Violation Detection Tests
-- **Empty Catch Blocks**: Verify detection of completely empty catch clauses
-- **Log-and-Continue**: Test detection of logging followed by default value
-  creation
-- **Silent Fallbacks**: Ensure detection of catch blocks that create fallback
-  values
+1. **Basic Detection**
+   - Empty catch blocks
+   - Logging without rethrow
+   - Print statements without propagation
 
-#### 2. Legitimate Pattern Tests
-- **Structured Error Responses**: Verify that legitimate error response patterns are
-  allowed
-- **Retry Logic**: Ensure retry mechanisms with proper tracking are permitted
-- **Cleanup Operations**: Test that cleanup-with-rethrow patterns are allowed
-- **Exception Transformation**: Verify that exception type conversion is
-  permitted
+2. **Allowed Patterns**
+   - Rethrow after logging
+   - Exception transformation
+   - Cleanup with rethrow
 
-#### 3. Edge Case Tests
-- **Complex Control Flow**: Test detection in nested try-catch structures
-- **Multiple Catch Clauses**: Verify handling of multiple catch blocks
-- **Mixed Patterns**: Test scenarios combining multiple detection patterns
+3. **Edge Cases**
+   - Multiple catch clauses
+   - Nested try-catch blocks
+   - Complex control flow
 
-#### 4. Performance Tests
-- **Large Codebases**: Ensure analysis performance on large files
-- **Complex AST Structures**: Test behavior with deeply nested code
-- **Memory Usage**: Verify efficient memory utilization during analysis
+### Test Implementation
 
-### Test Coverage Metrics
+Tests use the actual rule implementation to verify behavior:
 
-Current test suite covers:
-- **Pattern Detection**: 95% coverage of detection logic
-- **Edge Cases**: 90% coverage of unusual code structures
-- **Performance**: Baseline performance benchmarks established
-- **Integration**: Full IDE and CLI integration testing
+```dart
+bool _analyzeCode(String code) {
+  final parseResult = parseString(content: code, featureSet: FeatureSet.latestLanguageVersion());
+  final rule = const ExceptionHidingRule();
+  bool foundViolations = false;
+  
+  final visitor = _TryStatementFinder((tryStatement) {
+    for (final catchClause in tryStatement.catchClauses) {
+      if (rule._isExceptionHiding(catchClause)) {
+        foundViolations = true;
+        break;
+      }
+    }
+  });
+  
+  parseResult.unit.accept(visitor);
+  return foundViolations;
+}
+```
 
 ## Performance Considerations
 
-### Analysis Overhead
-
 The rule is designed for minimal performance impact:
 
-#### 1. Selective Analysis
-- Only analyzes `TryStatement` nodes, not entire AST
-- Short-circuits analysis when patterns are definitively identified
-- Efficient visitor pattern implementation
+1. **Selective Analysis**: Only analyzes `TryStatement` nodes, not entire AST
+2. **Early Exit**: Returns as soon as `rethrow` or `throw` is found
+3. **Simple Logic**: No complex pattern matching or deep analysis required
+4. **Stateless**: No state maintained between analyses
 
-#### 2. Memory Efficiency
-- Stateless visitor implementations
-- Minimal object allocation during analysis
-- Garbage collection friendly design
+## Future Considerations
 
-#### 3. Caching Strategy
-- Leverages Dart analyzer's built-in caching
-- Incremental analysis for changed files only
-- Shared AST analysis with other lint rules
+While the current implementation is intentionally simple, potential enhancements could include:
 
-### Benchmark Results
+1. **Configuration Options**: Allow teams to configure exceptions for specific patterns
+2. **Quick Fixes**: Automated suggestions to add `rethrow` statements
+3. **Metrics**: Track exception hiding patterns across codebases
+4. **Integration**: Better integration with popular logging frameworks
 
-Performance testing on typical codebases:
+However, the simplicity of the current rule is its strength - it enforces a clear, unambiguous principle that improves code quality.
 
-| Codebase Size | Analysis Time | Memory Usage | Files/Second |
-|---------------|---------------|--------------|--------------|
-| Small (< 100 files) | < 1s | < 50MB | 200+ |
-| Medium (100-1000 files) | 2-5s | 100-200MB | 150+ |
-| Large (1000+ files) | 5-15s | 200-500MB | 100+ |
+## Conclusion
 
-### Optimization Strategies
+The Exception Hiding Lint Rule provides a simple but powerful tool for maintaining code quality. By enforcing that all catch blocks must either `rethrow` or `throw`, it ensures that exceptions bubble up to reveal problems rather than being silently hidden.
 
-#### 1. Early Termination
-```dart
-// Stop analysis as soon as legitimate pattern is found
-if (isToolErrorHandling) {
-  return false; // No need to analyze further
-}
-```
-
-#### 2. Pattern Ordering
-- Check most common legitimate patterns first
-- Optimize for typical codebase patterns
-- Minimize expensive AST traversals
-
-#### 3. Heuristic Refinement
-- Continuously improve pattern detection accuracy
-- Reduce false positives to minimize developer interruption
-- Balance thoroughness with performance
-
-## Future Roadmap
-
-### Short-term Enhancements
-
-#### 1. Enhanced Pattern Recognition
-- **Async Exception Handling**: Better detection in async/await contexts
-- **Stream Error Handling**: Recognition of stream error handling patterns
-- **Custom Exception Types**: Configurable recognition of domain-specific
-  exceptions
-
-#### 2. Developer Experience Improvements
-- **Quick Fixes**: Automated suggestions for common violations
-- **Severity Configuration**: Adjustable warning levels for different patterns
-- **Better Error Messages**: More specific guidance on fixing violations
-
-### Medium-term Goals
-
-#### 1. Advanced Analysis Capabilities
-- **Cross-file Analysis**: Detection of exception handling patterns across
-  module boundaries
-- **Custom Configuration**: Team-specific exception handling rules
-
-#### 2. Integration Enhancements
-- **Framework-Specific Rules**: Specialized rules for Flutter, server-side Dart,
-  etc.
-- **Library Integration**: Built-in recognition of popular package error
-  patterns
-
-## Appendices
-
-### A. Configuration Examples
-
-#### Basic Configuration
-```yaml
-# analysis_options.yaml
-analyzer:
-  plugins:
-    - custom_lint
-
-custom_lint:
-  rules:
-    - exception_hiding
-```
-
-#### Advanced Configuration (Future)
-```yaml
-# analysis_options.yaml
-custom_lint:
-  rules:
-    - exception_hiding:
-        severity: error
-        allow_patterns:
-          - tool_error_handling
-          - retry_logic
-          - cleanup_operations
-        deny_patterns:
-          - silent_fallbacks
-          - empty_catch_blocks
-        custom_tool_patterns:
-          - "customTool.handleError"
-```
-
-### B. Common Patterns Reference
-
-#### Legitimate Exception Handling Patterns
-```dart
-// 1. Rethrow (with optional cleanup)
-try {
-  return processFile();
-} catch (e) {
-  await cleanupResources();
-  rethrow; // ✅ Only legitimate pattern
-}
-
-// 2. Exception Transformation
-try {
-  return lowLevelCall();
-} catch (LowLevelException e) {
-  throw HighLevelException('Operation failed', e); // ✅ Only other legitimate pattern
-}
-```
-
-#### Violation Patterns to Avoid
-```dart
-// 1. Log and Continue
-try {
-  return criticalOperation();
-} catch (e) {
-  logger.warning('Failed: $e');
-  return null; // ❌ Hides exception
-}
-
-// 2. Silent Default Creation
-try {
-  return parseData();
-} catch (e) {
-  return {}; // ❌ Creates empty result on failure
-}
-
-// 3. Tool Error Handling
-try {
-  return apiCall();
-} catch (e) {
-  return {'error': e.toString()}; // ❌ Hides exception
-}
-
-// 4. Retry Logic
-try {
-  return operation();
-} catch (e) {
-  attempt++;
-  await Future.delayed(Duration(seconds: 1));
-  // ❌ Hides exception (no rethrow)
-}
-
-// 5. Empty Catch
-try {
-  importantOperation();
-} catch (e) {
-  // ❌ Completely ignores exception
-}
-```
-
-### C. Troubleshooting Guide
-
-#### Common Issues
-
-**Issue**: Rule not triggering on obvious violations
-- **Cause**: Custom_lint not properly installed
-- **Solution**: Verify `dart run custom_lint` works correctly
-
-**Issue**: False positives on legitimate patterns
-- **Cause**: Pattern not recognized by current detection logic
-- **Solution**: Add `// ignore: exception_hiding` comment and report pattern
-  for future enhancement
-
-**Issue**: Performance impact on large codebases
-- **Cause**: Complex AST structures or inefficient analysis
-- **Solution**: Enable incremental analysis and consider excluding generated
-  files
-
-#### Debug Commands
-```bash
-# Verify custom_lint installation
-dart run custom_lint --help
-
-# Run with verbose output
-dart run custom_lint --verbose
-
-# Analyze specific files
-dart run custom_lint lib/src/specific_file.dart
-
-# Check rule configuration
-dart run custom_lint --print-config
-```
-
-### D. Contributing Guidelines
-
-#### Reporting Issues
-1. Provide minimal reproduction case
-2. Include Dart version and custom_lint version
-3. Specify expected vs. actual behavior
-4. Include relevant code snippets
-
-#### Proposing Enhancements
-1. Describe the exception handling pattern
-2. Explain why it should be allowed/flagged
-3. Provide example code demonstrating the pattern
-4. Consider performance implications
-
-#### Development Setup
-```bash
-# Clone repository
-git clone <repository-url>
-
-# Install dependencies
-dart pub get
-
-# Run tests
-dart test
-
-# Test on example code
-dart run custom_lint example/
-```
+The rule's simplicity makes it easy to understand, implement, and follow, while its strict enforcement helps teams maintain consistent exception handling practices across their codebases.
 
 ---
 
-*This design document serves as the authoritative reference for the Exception
-Hiding Lint Rule implementation, philosophy, and usage guidelines. It
-should be updated as the rule evolves and new patterns are discovered.*
+*This design document reflects the current implementation of the Exception Hiding Lint Rule. The rule is intentionally simple and opinionated to enforce clear exception handling practices.*

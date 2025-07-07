@@ -1,44 +1,11 @@
 # Exception Hiding Lint
 
-A custom Dart lint package that detects and prevents exception hiding
-patterns in your code.
+A custom Dart lint package that detects exception hiding patterns in your code.
 
 ## Why I built this
 
-I built this lint because I couldn't stop Claude Sonnet 4.0 out of using
-exceptions to paper over errors it didn't know how to fix with try-catch blocks
-that logged errors and moved on. Now I'm writing code to defend against bad
-AI-written code...
-
-## What it detects
-
-This linter identifies problematic try-catch blocks that:
-
-1. **Empty catch blocks** - Silently ignore exceptions without any handling
-2. **Log exceptions but don't rethrow** - Catches exceptions, logs them, but
-   continues execution without propagating the error
-3. **Create default/fallback values** - Catches exceptions and returns default
-   values instead of failing (empty maps `{}`, empty lists `[]`, hardcoded strings like `'Unknown User'`)
-4. **Assignment fallbacks** - Catches exceptions and assigns default values to variables
-5. **toString() fallbacks** - Catches exceptions and returns the exception as a string
-6. **Silent return patterns** - Any catch block that doesn't rethrow, throw, or implement legitimate retry logic
-
-## What it allows (legitimate patterns)
-
-- **Structured error responses** - Converting exceptions to `{'error': message}` format for API responses
-- **Proper cleanup with rethrow** - Cleanup code followed by `rethrow` or `throw`
-- **Exception transformation** - Catching one exception type and throwing a different one
-- **Retry logic** - Patterns with `Future.delayed()` or attempt increment tracking
-
-## Exception Hiding Prevention Principle
-
-> "Never hide exceptions with try-catch blocks unless there's a specific fix we
-> can apply in our code - exceptions are either problems we need to fix or
-> problems the user needs to fix, but hiding them makes that impossible."
-
-## Examples
-
-### ❌ BAD - Default Value Creation
+I built this lint because I couldn't stop my AI agent of the week from using
+`try-catch` blocks to paper over errors it didn't know how to fix, e.g.
 
 ```dart
 try {
@@ -50,15 +17,57 @@ try {
 }
 ```
 
-### ❌ BAD - Silent Fallback
+Of course, I've used `YOUR-AGENT-HERE.md` files and memory and etc. rules files
+depending on what agent I happen to be using, but no matter how many CAPS and
+!!! I use, I still can't consistently talk it  out of hiding errors like this.
+It feels like the AI is a child trying to hide it's mess so it doesn't get into
+trouble. Which may not be far from the truth; I have been known to use course
+language when providing feedback to the AI...
+
+Anyway, if you use this and then do things like retry logic, you can disable the
+lint on a case-by-case basis using standard lint `ignore` comments:
 
 ```dart
-try {
-  return fetchUserName();
-} catch (e) {
-  return 'Unknown User'; // Silent fallback - user never knows fetch failed
+Future<String> retryLogic() async {
+  int attempt = 0;
+  while (attempt < 3) {
+    try {
+      return await unstableNetworkCall();
+    // ignore: exception_hiding
+    } on Exception catch (_) {
+      attempt++;
+      if (attempt >= 3) rethrow;
+      await Future.delayed(Duration(seconds: attempt));
+    }
+  }
+  throw Exception('Max retries exceeded');
 }
 ```
+
+I wonder how long it'll take the AI to learn to learn to ignore these kinds of
+exception-hiding `catch` blocks itself...
+
+## What it detects
+
+This linter identifies problematic try-catch blocks that hide exceptions instead
+of letting them bubble up. The rule is simple: **every catch block must either
+`rethrow` or `throw`** - anything else is considered exception hiding.
+
+### ❌ Patterns that get flagged:
+
+1. **Empty catch blocks** - Silently ignore exceptions without any handling
+2. **Logging without rethrow** - Catches exceptions, logs them, but continues
+   execution without propagating the error
+3. **Any catch block without rethrow/throw** - Any catch block that doesn't end
+   with `rethrow` or `throw` is flagged
+
+## Exception Hiding Prevention Principle
+
+> "Never hide exceptions with try-catch blocks unless there's a specific fix we
+> can apply in our code - exceptions are either problems we need to fix or
+> problems the user needs to fix, but hiding them makes that impossible."
+
+## Examples
 
 ### ❌ BAD - Empty Catch Block
 
@@ -66,18 +75,42 @@ try {
 try {
   processImportantData();
 } catch (e) {
-  // Empty catch - silently ignores all problems
+  // Empty catch - hides all problems
 }
 ```
 
-### ❌ BAD - Assignment Default
+### ❌ BAD - Logging Without Rethrow
 
 ```dart
-String result;
 try {
-  result = complexCalculation();
+  final result = jsonDecode(data);
+  return result;
 } catch (e) {
-  result = 'default'; // Assigns default value - hiding!
+  _logger.warning('JSON parsing failed: $e');
+  return {}; // Creates default value instead of letting exception bubble up
+}
+```
+
+### ❌ BAD - Print and Continue
+
+```dart
+try {
+  return fetchUserName();
+} catch (e) {
+  print('Error: $e');
+  return 'Unknown User'; // Hides the actual error
+}
+```
+
+### ✅ GOOD - Rethrow After Logging
+
+```dart
+try {
+  final result = jsonDecode(data);
+  return result;
+} catch (e) {
+  _logger.warning('JSON parsing failed: $e');
+  rethrow; // Let the exception bubble up after logging
 }
 ```
 
@@ -92,30 +125,23 @@ try {
 }
 ```
 
-### ✅ GOOD - Structured Error Response
+### ✅ GOOD - Cleanup with Rethrow
 
 ```dart
 try {
-  final result = await apiCall();
-  return {'success': true, 'data': result};
+  await performOperation();
 } catch (e) {
-  return {'success': false, 'error': e.toString()};
-}
-```
-
-### ✅ GOOD - Proper Rethrow
-
-```dart
-try {
-  final result = jsonDecode(data);
-  return result;
-} catch (e) {
-  _logger.warning('JSON parsing failed: $e');
-  rethrow; // Let the exception bubble up after logging
+  await cleanup();
+  rethrow; // Always rethrow after cleanup
 }
 ```
 
 ## Installation
+
+***NOTE: I haven't published this on pub.dev yet, since it seems so silly that
+someone is going to tell me the way to get AI to do this. In the meantime, you
+can clone this repo and use it from a path; it's a dev dependency, so it
+shouldn't try you during pub.dev publication.***
 
 Add to your `analysis_options.yaml`:
 
@@ -133,18 +159,10 @@ Add to your `dev_dependencies` in `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  custom_lint: ^0.6.7
   exception_hiding_lint:
     path: ../exception_hiding_lint
 ```
 
 ## Usage
 
-Run the linter with:
-
-```bash
-dart run custom_lint
-```
-
-The rule will warn about any exception hiding patterns found in your code
-with suggestions on how to fix them.
+Just let the linter run in your IDE of choice or run `dart analyze` as normal.
