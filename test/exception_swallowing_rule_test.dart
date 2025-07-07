@@ -2,7 +2,7 @@ import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
-import 'package:exception_transparency_lint/src/exception_swallowing_rule.dart';
+import 'package:exception_swallowing_lint/src/exception_swallowing_rule.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -24,9 +24,10 @@ void badFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isTrue, reason: 'Empty catch blocks should be flagged');
+      expect(violations, isTrue,
+          reason: 'Empty catch blocks should be flagged');
     });
 
     test('should detect logging without rethrow', () {
@@ -41,9 +42,10 @@ void loggingFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isTrue, reason: 'Logging without rethrow should be flagged');
+      expect(violations, isTrue,
+          reason: 'Logging without rethrow should be flagged');
     });
 
     test('should detect logger usage without rethrow', () {
@@ -61,9 +63,10 @@ void loggerFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isTrue, reason: 'Logger usage without rethrow should be flagged');
+      expect(violations, isTrue,
+          reason: 'Logger usage without rethrow should be flagged');
     });
 
     test('should allow tool error handling', () {
@@ -85,9 +88,10 @@ void toolFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isFalse, reason: 'Tool error handling should be allowed');
+      expect(violations, isFalse,
+          reason: 'Tool error handling should be allowed');
     });
 
     test('should allow retry logic', () {
@@ -104,7 +108,7 @@ Future<void> retryFunction() async {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
       expect(violations, isFalse, reason: 'Retry logic should be allowed');
     });
@@ -121,7 +125,7 @@ void properFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
       expect(violations, isFalse, reason: 'Proper rethrow should be allowed');
     });
@@ -138,7 +142,7 @@ void customThrowFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
       expect(violations, isFalse, reason: 'Custom throw should be allowed');
     });
@@ -154,13 +158,14 @@ Map<String, dynamic> getDataWithDefaults() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
       if (!violations) {
         print('DEBUG: Failed to detect default value creation');
         print('This suggests the logic needs refinement');
       }
-      expect(violations, isTrue, reason: 'Default value creation should be flagged');
+      expect(violations, isTrue,
+          reason: 'Default value creation should be flagged');
     });
 
     test('should allow legitimate error conversion to map', () {
@@ -174,9 +179,10 @@ Map<String, dynamic> toolErrorHandler() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isFalse, reason: 'Error conversion for tools should be allowed');
+      expect(violations, isFalse,
+          reason: 'Error conversion for tools should be allowed');
     });
 
     test('should detect empty catch with only comments', () {
@@ -191,9 +197,10 @@ void commentOnlyFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isTrue, reason: 'Empty catch blocks are flagged regardless of comments');
+      expect(violations, isTrue,
+          reason: 'Empty catch blocks are flagged regardless of comments');
     });
 
     test('should handle multiple catch clauses', () {
@@ -210,9 +217,10 @@ void multipleCatchFunction() {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isTrue, reason: 'First catch clause should be flagged');
+      expect(violations, isTrue,
+          reason: 'First catch clause should be flagged');
     });
 
     test('should allow various legitimate retry patterns', () {
@@ -231,9 +239,10 @@ Future<void> complexRetryFunction() async {
   }
 }
 ''';
-      
+
       final violations = _analyzeCode(code);
-      expect(violations, isFalse, reason: 'Complex retry logic should be allowed');
+      expect(violations, isFalse,
+          reason: 'Complex retry logic should be allowed');
     });
   });
 }
@@ -259,7 +268,7 @@ bool _analyzeCode(String code) {
       }
     }
   });
-  
+
   parseResult.unit.accept(visitor);
 
   return foundViolations;
@@ -321,12 +330,14 @@ extension ExceptionSwallowingRuleTest on ExceptionSwallowingRule {
 
       // Check for retry logic patterns (legitimate exception handling)
       if (_isRetryLogicForTesting(statement)) {
-        isToolErrorHandling = true; // Using same flag to indicate legitimate handling
+        isToolErrorHandling =
+            true; // Using same flag to indicate legitimate handling
         print('DEBUG: Found retry logic in statement: ${statement}');
       }
     }
 
-    print('DEBUG: Analysis results - hasLogging: $hasLogging, hasRethrow: $hasRethrow, hasThrow: $hasThrow, isToolErrorHandling: $isToolErrorHandling');
+    print(
+        'DEBUG: Analysis results - hasLogging: $hasLogging, hasRethrow: $hasRethrow, hasThrow: $hasThrow, isToolErrorHandling: $isToolErrorHandling');
 
     // Tool error handling is legitimate - converting exceptions to {'error': message}
     if (isToolErrorHandling) {
@@ -373,7 +384,8 @@ extension ExceptionSwallowingRuleTest on ExceptionSwallowingRule {
   bool _createsDefaultValuesForTesting(List<Statement> statements) {
     // Look for assignment statements or return statements that create default/fallback values
     for (final statement in statements) {
-      print('DEBUG: Analyzing statement: ${statement.runtimeType} - ${statement}');
+      print(
+          'DEBUG: Analyzing statement: ${statement.runtimeType} - ${statement}');
       if (statement is ExpressionStatement) {
         final expression = statement.expression;
         if (expression is AssignmentExpression) {
@@ -500,7 +512,8 @@ class _RetryLogicDetectorForTesting extends RecursiveAstVisitor<void> {
   void visitAssignmentExpression(AssignmentExpression node) {
     // Look for attempt += 1 or similar patterns
     final code = node.toString();
-    if ((code.contains('attempt') || code.contains('retry')) && code.contains('+=')) {
+    if ((code.contains('attempt') || code.contains('retry')) &&
+        code.contains('+=')) {
       isRetryLogic = true;
     }
 

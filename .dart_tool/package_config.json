@@ -410,7 +410,7 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "exception_transparency_lint",
+      "name": "exception_swallowing_lint",
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.0"

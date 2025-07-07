@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a custom Dart lint package that enforces "Exception Transparency" principles. The package detects and flags exception swallowing patterns where try-catch blocks hide exceptions instead of letting them bubble up. It's built using the custom_lint_builder framework.
+This is a custom Dart lint package that enforces exception swallowing prevention. The package detects and flags exception swallowing patterns where try-catch blocks hide exceptions instead of letting them bubble up. It's built using the custom_lint_builder framework.
 
 ## Core Architecture
 
-- **Main entry point**: `lib/exception_transparency_lint.dart` - Creates the plugin and registers lint rules
+- **Main entry point**: `lib/exception_swallowing_lint.dart` - Creates the plugin and registers lint rules
 - **Rule implementation**: `lib/src/exception_swallowing_rule.dart` - Contains the `ExceptionSwallowingRule` with AST analysis logic
 - **Testing**: `test/exception_swallowing_rule_test.dart` - Unit tests for the lint rule
 
@@ -39,9 +39,9 @@ dart analyze
 dart pub get
 ```
 
-## Exception Transparency Principle
+## Exception Swallowing Prevention
 
-The core principle: Never hide exceptions with try-catch blocks unless there's a specific fix we can apply. Exceptions reveal problems that either we need to fix or users need to fix, but swallowing them makes diagnosis impossible.
+The core principle: Never swallow exceptions with try-catch blocks unless there's a specific fix we can apply. Exceptions reveal problems that either we need to fix or users need to fix, but swallowing them makes diagnosis impossible.
 
 **Legitimate patterns the rule allows:**
 - Proper cleanup with rethrow/throw

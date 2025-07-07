@@ -1,7 +1,7 @@
-# Exception Transparency Lint
+# Exception Swallowing Lint
 
 A custom Dart lint package that detects and prevents exception swallowing
-patterns that violate the Exception Transparency principle.
+patterns in your code.
 
 ## Why I built this
 
@@ -30,9 +30,9 @@ This linter identifies problematic try-catch blocks that:
 - **Exception transformation** - Catching one exception type and throwing a different one
 - **Retry logic** - Patterns with `Future.delayed()` or attempt increment tracking
 
-## Exception Transparency Principle
+## Exception Swallowing Prevention Principle
 
-> "Never hide exceptions with try-catch blocks unless there's a specific fix we
+> "Never swallow exceptions with try-catch blocks unless there's a specific fix we
 > can apply in our code - exceptions are either problems we need to fix or
 > problems the user needs to fix, but swallowing them makes that impossible."
 
@@ -134,8 +134,8 @@ Add to your `dev_dependencies` in `pubspec.yaml`:
 ```yaml
 dev_dependencies:
   custom_lint: ^0.6.7
-  exception_transparency_lint:
-    path: ../exception_transparency_lint
+  exception_swallowing_lint:
+    path: ../exception_swallowing_lint
 ```
 
 ## Usage
