@@ -141,7 +141,7 @@ try {
 ***NOTE: I haven't published this on pub.dev yet, since it seems so silly that
 someone is going to tell me the way to get AI to do this. In the meantime, you
 can clone this repo and use it from a path; it's a dev dependency, so it
-shouldn't stop you during pub.dev publication.***
+shouldn't stop you from doing pub.dev publication.***
 
 Add to your `analysis_options.yaml`:
 
